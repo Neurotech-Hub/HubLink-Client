@@ -13,7 +13,7 @@ load_dotenv()
 SECRET_URL = os.getenv("SECRET_URL")
 
 # Set local directory for syncing
-LOCAL_DIRECTORY = "/Users/mattgaidica/Documents/Software/HubLink-Client/data"
+LOCAL_DIRECTORY = "~/Documents/Software/HubLink-Client/data"
 
 def get_s3_credentials(url):
     try:
