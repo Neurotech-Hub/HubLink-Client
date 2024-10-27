@@ -74,3 +74,7 @@ $ deactivate
 
 This project is licensed under the MIT License.
 
+### Using AWS-CLI
+
+See [How to Sync AWS S3 Buckets with Local Folders Let see the steps below](https://www.linkedin.com/pulse/how-sync-aws-s3-buckets-local-folders-let-see-steps-belo-amit-kumar/).
+
