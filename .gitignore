@@ -1,0 +1,21 @@
+# Python
+*.pyc
+__pycache__/
+.env
+
+# Virtual Environment
+venv/
+
+# AWS CLI Cache
+.aws/
+
+# Local data directory
+/data
+./data
+
+# Logs
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
