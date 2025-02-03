@@ -13,7 +13,7 @@ load_dotenv()
 SECRET_URL = os.getenv("SECRET_URL")
 
 # Set local directory for syncing
-LOCAL_DIRECTORY = "~/Documents/Software/HubLink-Client/data"
+LOCAL_DIRECTORY = "./data"
 
 def get_s3_credentials(url):
     try:
@@ -105,8 +105,8 @@ def main():
     
     # Ask for user confirmation before proceeding with sync
     if files_to_sync:
-        user_input = input(f"{len(files_to_sync)} files need to be synced, totaling {total_size / (1024 * 1024):.2f} MB. Do you want to proceed? (yes/no): ")
-        if user_input.lower() != 'yes':
+        user_input = input(f"{len(files_to_sync)} files need to be synced, totaling {total_size / (1024 * 1024):.2f} MB. Proceed? [Y/n]: ")
+        if user_input.lower() not in ['', 'y', 'yes']:
             print("Sync aborted by user.")
             return
     
