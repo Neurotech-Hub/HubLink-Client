@@ -78,3 +78,11 @@ This project is licensed under the MIT License.
 
 See [How to Sync AWS S3 Buckets with Local Folders Let see the steps below](https://www.linkedin.com/pulse/how-sync-aws-s3-buckets-local-folders-let-see-steps-belo-amit-kumar/).
 
+
+## Credentials
+
+The client asks `SECRET_URL.json` for credentials. Newer HubLink servers answer
+with short-lived, bucket-scoped credentials that include `aws_session_token`
+(valid about an hour — long enough for a sync; re-run the client for a fresh
+set). Older servers answer with a permanent key pair and no token. The client
+accepts both. Platform files under `.hublink/` in the bucket are skipped.

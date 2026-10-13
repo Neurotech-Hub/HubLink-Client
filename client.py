@@ -16,6 +16,12 @@ SECRET_URL = os.getenv("SECRET_URL")
 LOCAL_DIRECTORY = "./data"
 
 def get_s3_credentials(url):
+    """Credentials from the account's settings endpoint.
+
+    Newer servers vend short-lived credentials that include ``aws_session_token``
+    (valid ~1 h); older ones hand out a permanent key pair without it. Both
+    shapes are accepted, so the same client works through the migration.
+    """
     try:
         response = requests.get(url + ".json")
         response.raise_for_status()
@@ -23,12 +29,15 @@ def get_s3_credentials(url):
         aws_access_key_id = data["aws_access_key_id"]
         aws_secret_access_key = data["aws_secret_access_key"]
         bucket_name = data["bucket_name"]
-        return aws_access_key_id, aws_secret_access_key, bucket_name
+        aws_session_token = data.get("aws_session_token")
+        if data.get("expiration"):
+            print(f"Credentials expire at {data['expiration']}")
+        return aws_access_key_id, aws_secret_access_key, bucket_name, aws_session_token
     except requests.RequestException as e:
         print(f"Error fetching credentials: {e}")
-        return None, None, None
+        return None, None, None, None
 
-def calculate_sync_requirements(aws_access_key_id, aws_secret_access_key, bucket_name, local_directory=LOCAL_DIRECTORY):
+def calculate_sync_requirements(aws_access_key_id, aws_secret_access_key, bucket_name, local_directory=LOCAL_DIRECTORY, aws_session_token=None):
     if not aws_access_key_id or not aws_secret_access_key or not bucket_name:
         print("Invalid credentials. Unable to proceed.")
         return [], 0
@@ -38,14 +47,18 @@ def calculate_sync_requirements(aws_access_key_id, aws_secret_access_key, bucket
         s3 = boto3.client(
             's3',
             aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key
+            aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token
         )
         
-        # Get the list of objects in the bucket
-        response = s3.list_objects_v2(Bucket=bucket_name)
-        
+        # Get the list of objects in the bucket (all pages; platform artefacts
+        # under .hublink/ are the server's, not data)
         files_to_sync = []
         total_size = 0
+        contents = []
+        for page in s3.get_paginator('list_objects_v2').paginate(Bucket=bucket_name):
+            contents.extend(o for o in page.get('Contents', []) if not o['Key'].startswith('.hublink/'))
+        response = {'Contents': contents} if contents else {}
         if 'Contents' in response:
             for obj in response['Contents']:
                 key = obj['Key']
@@ -75,7 +88,7 @@ def calculate_sync_requirements(aws_access_key_id, aws_secret_access_key, bucket
         print(f"An unexpected error occurred: {e}")
     return [], 0
 
-def sync_s3_to_local_with_cli(bucket_name, aws_access_key_id, aws_secret_access_key, local_directory=LOCAL_DIRECTORY):
+def sync_s3_to_local_with_cli(bucket_name, aws_access_key_id, aws_secret_access_key, local_directory=LOCAL_DIRECTORY, aws_session_token=None):
     try:
         # Check if AWS CLI is installed
         if not shutil.which("aws"):
@@ -84,8 +97,12 @@ def sync_s3_to_local_with_cli(bucket_name, aws_access_key_id, aws_secret_access_
         # Use AWS CLI to sync S3 bucket with local directory
         os.environ['AWS_ACCESS_KEY_ID'] = aws_access_key_id
         os.environ['AWS_SECRET_ACCESS_KEY'] = aws_secret_access_key
+        if aws_session_token:
+            os.environ['AWS_SESSION_TOKEN'] = aws_session_token
+        else:
+            os.environ.pop('AWS_SESSION_TOKEN', None)
         sync_command = [
-            "aws", "s3", "sync", f"s3://{bucket_name}", local_directory
+            "aws", "s3", "sync", f"s3://{bucket_name}", local_directory, "--exclude", ".hublink/*"
         ]
         subprocess.run(sync_command, check=True)
         print("Sync completed successfully.")
@@ -98,10 +115,10 @@ def sync_s3_to_local_with_cli(bucket_name, aws_access_key_id, aws_secret_access_
 
 def main():
     # Get S3 credentials
-    aws_access_key_id, aws_secret_access_key, bucket_name = get_s3_credentials(SECRET_URL)
+    aws_access_key_id, aws_secret_access_key, bucket_name, aws_session_token = get_s3_credentials(SECRET_URL)
     
     # Calculate the files that need syncing and the required storage
-    files_to_sync, total_size = calculate_sync_requirements(aws_access_key_id, aws_secret_access_key, bucket_name)
+    files_to_sync, total_size = calculate_sync_requirements(aws_access_key_id, aws_secret_access_key, bucket_name, aws_session_token=aws_session_token)
     
     # Ask for user confirmation before proceeding with sync
     if files_to_sync:
@@ -111,7 +128,7 @@ def main():
             return
     
     # Sync S3 bucket with local directory using AWS CLI
-    sync_s3_to_local_with_cli(bucket_name, aws_access_key_id, aws_secret_access_key)
+    sync_s3_to_local_with_cli(bucket_name, aws_access_key_id, aws_secret_access_key, aws_session_token=aws_session_token)
 
 if __name__ == "__main__":
     main()
